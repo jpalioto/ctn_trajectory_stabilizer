@@ -1,50 +1,91 @@
 # CTN Trajectory Stabilizer
 
-A small TypeScript demonstrator for constraining LLM tool-calling with explicit control flow, typed dataflow, and fail-fast rejection paths.
+A small TypeScript demonstrator for **trajectory stabilization** in tool-calling systems.
 
-## What Phase 1 Added
+It shows how to constrain a simple business-process workflow with:
 
-Phase 1 stabilizes execution with ordered runtime validation:
+- explicit DFA-based control-flow ordering
+- ordered, fail-fast runtime validation
+- semantic validation distinct from schema validation
+- value-based provenance checks on selected intermediate values
+- structured diagnostics with centralized rendering
+- modest compile-time traversal typing that improves ergonomics without replacing runtime enforcement
+
+## What it demonstrates
+
+This repo demonstrates a constrained tool-calling pipeline:
+
+1. `lookup_customer`
+2. `get_phone_number`
+3. `send_text`
+
+The executor validates each proposed step in a fixed order:
+
 1. tool exists
-2. transition is allowed from the current state
-3. input schema parses
-4. semantic validation passes
-5. provenance validation passes
-6. tool executes
-7. result schema parses
+2. transition allowed from current state
+3. schema valid
+4. semantic validation
+5. provenance validation
+6. execute tool
+7. persist typed outputs
+8. advance state
 
-This order is intentional and fail-fast. Blocked steps do not execute tools, and later checks never mask earlier failures.
+Invalid steps fail fast and do **not** execute tools.
 
-## What Phase 2 Added
+## What Phase 1 established
 
-Phase 2 moves error assembly behind a typed diagnostic layer:
-- rejection paths first produce structured failure context
-- a centralized renderer converts that context into the outward-facing `StabilizingError`
-- runtime failures keep runtime-specific codes such as `TOOL_EXECUTION_FAILED` and `RESULT_SCHEMA_VALIDATION_FAILED`
+Phase 1 built the minimal stabilizer:
 
-This keeps rejection handling consistent without changing the DFA, validation order, or runtime semantics.
+- DFA-constrained step ordering
+- semantic blocking for cases like passing a name where a phone number is expected
+- provenance blocking for ungrounded terminal values
+- structured outward `StepResult` errors
 
-## Runtime vs Compile Time
+## What Phase 2 added
 
-Runtime stabilization still does the real enforcement. Even if a caller has type information, runtime validation is required because proposals and tool outputs are dynamic.
+Phase 2 tightened the demonstrator:
 
-Compile-time help is lightweight and optional. [`src/types/traversal.ts`](./src/types/traversal.ts) exposes an explicit state-to-next-tool mapping so a framework user can ask for legal continuations from a known state and get narrowed tool names in TypeScript.
+- structured internal diagnostics
+- centralized rendering of stabilization errors
+- more accurate runtime error taxonomy
+- deterministic demo/test behavior
+- modest compile-time traversal typing
 
-## Core Flow
+## What the hardening patch improves
 
-The demonstrator enforces a simple DFA:
-`START` -> `lookup_customer` -> `get_phone_number` -> `send_text` -> `DONE`
+The hardening patch closes an important continuity gap:
 
-It also blocks:
-- semantic mismatches such as passing a probable `PERSON_NAME` where `PHONE_NUMBER` is expected
-- provenance mismatches such as using a valid-looking phone number that was not produced by `get_phone_number`
+- `get_phone_number.customerId` must now be grounded in a `CUSTOMER_ID` produced by `lookup_customer`
+- output objects now carry simple lineage through `sourceObjectIds`
 
-## Usage
+This makes the repo stronger on **object continuity across the chain**, not just step ordering.
+
+## What this repo does **not** claim
+
+This is still an MVP demonstrator. It does **not** yet provide:
+
+- full chain-of-custody provenance
+- trajectory-scoped object-store isolation
+- object-id-based provenance instead of value-based matching
+- branching/cyclic workflow stabilization
+- universal semantic validation on every possible tool
+- a generic workflow platform or policy engine
+
+The current provenance model is intentionally simple:
+
+- it is value-based
+- it is local to the demonstrator
+- it should not be mistaken for full lineage closure
+
+## Why runtime validation still matters
+
+The compile-time traversal helpers are ergonomic only. They help a framework user see legal continuations from a known state, but they do not enforce anything at runtime.
+
+Actual enforcement happens at the executor boundary, where proposals and tool outputs are still dynamic.
+
+## Running
+
+Install dependencies:
 
 ```bash
 npm install
-npm test
-npm run demo
-```
-
-The demo in [`src/demo/scenario.ts`](./src/demo/scenario.ts) shows an invalid transition, a semantic mismatch, and a repaired valid chain.
