@@ -1,43 +1,50 @@
 # CTN Trajectory Stabilizer
 
-A minimal TypeScript demonstrator for constraining LLM tool-calling with explicit control-flow, typed dataflow, and semantic blocking errors.
+A small TypeScript demonstrator for constraining LLM tool-calling with explicit control flow, typed dataflow, and fail-fast rejection paths.
 
-## Core Concepts
+## What Phase 1 Added
 
-### Stabilization vs. Isolation
-Unlike basic tool isolation which only focuses on "safe" execution, **stabilization** constrains the *trajectories* of LLM actions to prevent drift into invalid states or logical inconsistencies.
+Phase 1 stabilizes execution with ordered runtime validation:
+1. tool exists
+2. transition is allowed from the current state
+3. input schema parses
+4. semantic validation passes
+5. provenance validation passes
+6. tool executes
+7. result schema parses
 
-### 1. Control-Flow Stabilization
-Enforces an explicit Deterministic Finite Automaton (DFA) over the tool chain:
-`START` -> `lookup_customer` -> `get_phone_number` -> `send_text` -> `DONE`.
+This order is intentional and fail-fast. Blocked steps do not execute tools, and later checks never mask earlier failures.
 
-### 2. Semantic Validation
-Blocks inputs that match the correct *syntax* (e.g., `string`) but the wrong *semantic class*. 
-**Example**: Blocks `send_text` if `phoneNumber` resembles a `PERSON_NAME` ("John Smith").
+## What Phase 2 Added
 
-### 3. Provenance Validation
-Ensures tool inputs are grounded in previous outputs.
-**Example**: `send_text` requires a `PHONE_NUMBER` produced specifically by `get_phone_number`.
+Phase 2 moves error assembly behind a typed diagnostic layer:
+- rejection paths first produce structured failure context
+- a centralized renderer converts that context into the outward-facing `StabilizingError`
+- runtime failures keep runtime-specific codes such as `TOOL_EXECUTION_FAILED` and `RESULT_SCHEMA_VALIDATION_FAILED`
+
+This keeps rejection handling consistent without changing the DFA, validation order, or runtime semantics.
+
+## Runtime vs Compile Time
+
+Runtime stabilization still does the real enforcement. Even if a caller has type information, runtime validation is required because proposals and tool outputs are dynamic.
+
+Compile-time help is lightweight and optional. [`src/types/traversal.ts`](./src/types/traversal.ts) exposes an explicit state-to-next-tool mapping so a framework user can ask for legal continuations from a known state and get narrowed tool names in TypeScript.
+
+## Core Flow
+
+The demonstrator enforces a simple DFA:
+`START` -> `lookup_customer` -> `get_phone_number` -> `send_text` -> `DONE`
+
+It also blocks:
+- semantic mismatches such as passing a probable `PERSON_NAME` where `PHONE_NUMBER` is expected
+- provenance mismatches such as using a valid-looking phone number that was not produced by `get_phone_number`
 
 ## Usage
 
-### Install
 ```bash
 npm install
-```
-
-### Run Tests
-```bash
 npm test
-```
-
-### Run Demo
-```bash
 npm run demo
 ```
 
-## Demo Scenarios
-The demo script (`src/demo/scenario.ts`) showcases:
-1. **Invalid Transition**: Attempting to send a text before identifying a customer.
-2. **Semantic Mismatch**: Attempting to send a text to a person's name instead of their phone number.
-3. **Repaired Chain**: A full valid sequence reaching the `DONE` state.
+The demo in [`src/demo/scenario.ts`](./src/demo/scenario.ts) shows an invalid transition, a semantic mismatch, and a repaired valid chain.
