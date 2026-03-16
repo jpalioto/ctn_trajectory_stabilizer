@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Secrets and credentials
+.env
+.env.*
+*.env
+.secrets/
+.credentials/
+*.key
+*.pem
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
