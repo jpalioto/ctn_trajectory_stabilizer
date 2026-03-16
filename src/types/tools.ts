@@ -41,6 +41,11 @@ export interface ProvenanceRule {
   requiredProducer: string;
 }
 
+export interface MaterializationContext {
+  objectStore: ObjectStore;
+  sourceObjectIdsByField: Record<string, string[]>;
+}
+
 export interface ToolSpec<
   TArgs extends ZodTypeAny = ZodTypeAny,
   TResult extends ZodTypeAny = ZodTypeAny,
@@ -57,6 +62,7 @@ export interface ToolSpec<
   materializeObjects?: (
     result: z.infer<TResult>,
     args: z.infer<TArgs>,
+    context?: MaterializationContext,
   ) => TypedObject[];
 }
 
@@ -73,6 +79,7 @@ export interface RuntimeToolSpec {
   materializeObjects?: (
     result: unknown,
     args: Record<string, unknown>,
+    context?: MaterializationContext,
   ) => TypedObject[];
 }
 
@@ -102,10 +109,11 @@ export const toRuntimeToolSpec = <
       : undefined,
     provenanceRules: tool.provenanceRules,
     materializeObjects: materializeObjects
-      ? (result, args) =>
+      ? (result, args, context) =>
           materializeObjects(
             castResult<TResult>(result),
             castArgs<TArgs>(args),
+            context,
           )
       : undefined,
   };

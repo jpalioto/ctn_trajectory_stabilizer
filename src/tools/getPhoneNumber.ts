@@ -21,14 +21,23 @@ export const getPhoneNumber: ToolSpec<typeof GetPhoneNumberArgsSchema, typeof Ge
       phoneNumber: customer.phoneNumber,
     };
   },
-  materializeObjects: (result) => {
+  provenanceRules: [
+    {
+      field: 'customerId',
+      requiredType: 'CUSTOMER_ID',
+      requiredProducer: 'lookup_customer',
+    },
+  ],
+  materializeObjects: (result, _args, context) => {
+    const sourceObjectIds = context?.sourceObjectIdsByField.customerId ?? [];
+
     return [
       {
         objectId: nextObjectId('phone'),
         typeName: 'PHONE_NUMBER',
         value: result.phoneNumber,
         producedBy: 'get_phone_number',
-        sourceObjectIds: [],
+        sourceObjectIds,
         createdAt: nextCreatedAt(),
       },
     ];

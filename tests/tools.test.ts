@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { lookupCustomer } from '../src/tools/lookupCustomer.js';
 import { getPhoneNumber } from '../src/tools/getPhoneNumber.js';
 import { sendText } from '../src/tools/sendText.js';
+import { ObjectStore } from '../src/store/objectStore.js';
 import { resetIds } from '../src/utils/ids.js';
 
 describe('Tool: lookup_customer', () => {
@@ -47,13 +48,17 @@ describe('Tool: get_phone_number', () => {
     const result = await getPhoneNumber.execute(args);
     expect(result.phoneNumber).toBe('+15551234567');
 
-    const objects = getPhoneNumber.materializeObjects?.(result, args);
+    const objects = getPhoneNumber.materializeObjects?.(result, args, {
+      objectStore: new ObjectStore(),
+      sourceObjectIdsByField: { customerId: ['customer_2'] },
+    });
     if (!objects) {
       throw new Error('get_phone_number should materialize objects');
     }
     expect(objects).toHaveLength(1);
     expect(objects[0].objectId).toBe('phone_1');
     expect(objects[0].typeName).toBe('PHONE_NUMBER');
+    expect(objects[0].sourceObjectIds).toEqual(['customer_2']);
   });
 
   it('should validate args schema', () => {
@@ -72,13 +77,17 @@ describe('Tool: send_text', () => {
     const result = await sendText.execute(args);
     expect(result.messageId).toBe('message_1');
 
-    const objects = sendText.materializeObjects?.(result, args);
+    const objects = sendText.materializeObjects?.(result, args, {
+      objectStore: new ObjectStore(),
+      sourceObjectIdsByField: { phoneNumber: ['phone_1'] },
+    });
     if (!objects) {
       throw new Error('send_text should materialize objects');
     }
     expect(objects).toHaveLength(1);
     expect(objects[0].objectId).toBe('message_record_2');
     expect(objects[0].typeName).toBe('TEXT_MESSAGE_ID');
+    expect(objects[0].sourceObjectIds).toEqual(['phone_1']);
   });
 
   it('should validate args schema', () => {

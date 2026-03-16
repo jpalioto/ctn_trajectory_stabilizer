@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StabilizingExecutor } from '../src/engine/executor.js';
 import { toolRegistry } from '../src/tools/registry.js';
 import { transitions } from '../src/engine/controlFlow.js';
@@ -180,6 +180,67 @@ describe('StabilizingExecutor End-to-End', () => {
     if (!result.ok) {
       expect(result.error.code).toBe('RESULT_SCHEMA_VALIDATION_FAILED');
       expect(result.error.message).toContain('customerId');
+    }
+  });
+
+  it('should block a Jane Doe / John Smith continuity switch before get_phone_number executes', async () => {
+    const getPhoneNumberTool = toolRegistry.get('get_phone_number');
+    expect(getPhoneNumberTool).toBeDefined();
+    if (!getPhoneNumberTool) {
+      throw new Error('get_phone_number tool must exist for continuity tests');
+    }
+
+    const executeSpy = vi.fn(getPhoneNumberTool.execute);
+    const spyRegistry = new Map<string, RuntimeToolSpec>(toolRegistry);
+    spyRegistry.set('get_phone_number', {
+      ...getPhoneNumberTool,
+      execute: executeSpy,
+    });
+
+    const instrumentedExecutor = new StabilizingExecutor(spyRegistry, transitions, store);
+    const lookupResult = await instrumentedExecutor.executeStep('START', {
+      toolName: 'lookup_customer',
+      args: { name: 'Jane Doe' }
+    });
+
+    expect(lookupResult.ok).toBe(true);
+
+    const result = await instrumentedExecutor.executeStep('CUSTOMER_IDENTIFIED', {
+      toolName: 'get_phone_number',
+      args: { customerId: 'cust_1' }
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('UNGROUNDED_INPUT');
+      expect(result.error.attemptedTool).toBe('get_phone_number');
+    }
+    expect(executeSpy).not.toHaveBeenCalled();
+  });
+
+  it('should preserve continuity sourceObjectIds through a valid lookup, phone resolution, and send flow', async () => {
+    const res1 = await executor.executeStep('START', {
+      toolName: 'lookup_customer',
+      args: { name: 'John Smith' }
+    });
+    expect(res1.ok).toBe(true);
+
+    const res2 = await executor.executeStep('CUSTOMER_IDENTIFIED', {
+      toolName: 'get_phone_number',
+      args: { customerId: 'cust_1' }
+    });
+    expect(res2.ok).toBe(true);
+    if (res2.ok) {
+      expect(res2.newObjects[0].sourceObjectIds).toEqual(['customer_2']);
+    }
+
+    const res3 = await executor.executeStep('PHONE_RESOLVED', {
+      toolName: 'send_text',
+      args: { phoneNumber: '+15551234567', message: 'Appointment confirmed' }
+    });
+    expect(res3.ok).toBe(true);
+    if (res3.ok) {
+      expect(res3.newObjects[0].sourceObjectIds).toEqual(['phone_3']);
     }
   });
 });

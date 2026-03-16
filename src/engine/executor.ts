@@ -2,6 +2,7 @@ import { State } from '../types/core.js';
 import { Transition } from '../types/transitions.js';
 import { ToolExecutionError } from '../types/errors.js';
 import { StabilizationDiagnostic } from '../types/diagnostics.js';
+import { MaterializationContext } from '../types/tools.js';
 import { RuntimeToolSpec, ToolCallProposal, StepResult } from '../types/tools.js';
 import { ObjectStore } from '../store/objectStore.js';
 import { allowedNextTools, nextStateFor } from './controlFlow.js';
@@ -28,6 +29,34 @@ export class StabilizingExecutor {
     return {
       ok: false,
       error: renderStabilizingError(diagnostic),
+    };
+  }
+
+  private buildMaterializationContext(
+    tool: RuntimeToolSpec,
+    args: Record<string, unknown>,
+  ): MaterializationContext {
+    const sourceObjectIdsByField: Record<string, string[]> = {};
+
+    for (const rule of tool.provenanceRules ?? []) {
+      const value = args[rule.field];
+      if (value === undefined || value === null) {
+        sourceObjectIdsByField[rule.field] = [];
+        continue;
+      }
+
+      const matchedObject = this.objectStore
+        .findByValue(rule.requiredType, value)
+        .find((object) => object.producedBy === rule.requiredProducer);
+
+      sourceObjectIdsByField[rule.field] = matchedObject
+        ? [matchedObject.objectId]
+        : [];
+    }
+
+    return {
+      objectStore: this.objectStore,
+      sourceObjectIdsByField,
     };
   }
 
@@ -139,7 +168,12 @@ export class StabilizingExecutor {
     }
 
     // 7. Materialize and persist typed objects
-    const newObjects = tool.materializeObjects?.(parsedResult.data, parsed.data) ?? [];
+    const materializationContext = this.buildMaterializationContext(tool, parsed.data);
+    const newObjects = tool.materializeObjects?.(
+      parsedResult.data,
+      parsed.data,
+      materializationContext,
+    ) ?? [];
     this.objectStore.addMany(newObjects);
 
     // 8. Advance state

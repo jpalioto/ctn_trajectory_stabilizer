@@ -38,14 +38,16 @@ export const sendText: ToolSpec<typeof SendTextArgsSchema, typeof SendTextResult
       requiredProducer: 'get_phone_number',
     },
   ],
-  materializeObjects: (result) => {
+  materializeObjects: (result, _args, context) => {
+    const sourceObjectIds = context?.sourceObjectIdsByField.phoneNumber ?? [];
+
     return [
       {
         objectId: nextObjectId('message_record'),
         typeName: 'TEXT_MESSAGE_ID',
         value: result.messageId,
         producedBy: 'send_text',
-        sourceObjectIds: [],
+        sourceObjectIds,
         createdAt: nextCreatedAt(),
       },
     ];
