@@ -76,25 +76,37 @@ export interface RuntimeToolSpec {
   ) => TypedObject[];
 }
 
+const castArgs = <TArgs extends ZodTypeAny>(
+  args: Record<string, unknown>,
+): z.infer<TArgs> => args as z.infer<TArgs>;
+
+const castResult = <TResult extends ZodTypeAny>(result: unknown): z.infer<TResult> =>
+  result as z.infer<TResult>;
+
 export const toRuntimeToolSpec = <
   TArgs extends ZodTypeAny,
   TResult extends ZodTypeAny,
 >(
   tool: ToolSpec<TArgs, TResult>,
-): RuntimeToolSpec => ({
-  name: tool.name,
-  argsSchema: tool.argsSchema,
-  resultSchema: tool.resultSchema,
-  execute: (args) => tool.execute(args as z.infer<TArgs>),
-  semanticValidate: tool.semanticValidate
-    ? (args, ctx) => tool.semanticValidate?.(args as z.infer<TArgs>, ctx) ?? []
-    : undefined,
-  provenanceRules: tool.provenanceRules,
-  materializeObjects: tool.materializeObjects
-    ? (result, args) =>
-        tool.materializeObjects?.(
-          result as z.infer<TResult>,
-          args as z.infer<TArgs>,
-        ) ?? []
-    : undefined,
-});
+): RuntimeToolSpec => {
+  const semanticValidate = tool.semanticValidate;
+  const materializeObjects = tool.materializeObjects;
+
+  return {
+    name: tool.name,
+    argsSchema: tool.argsSchema,
+    resultSchema: tool.resultSchema,
+    execute: (args) => tool.execute(castArgs<TArgs>(args)),
+    semanticValidate: semanticValidate
+      ? (args, ctx) => semanticValidate(castArgs<TArgs>(args), ctx)
+      : undefined,
+    provenanceRules: tool.provenanceRules,
+    materializeObjects: materializeObjects
+      ? (result, args) =>
+          materializeObjects(
+            castResult<TResult>(result),
+            castArgs<TArgs>(args),
+          )
+      : undefined,
+  };
+};

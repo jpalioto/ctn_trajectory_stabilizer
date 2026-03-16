@@ -11,9 +11,12 @@ describe('Tool: lookup_customer', () => {
     expect(result.matchedName).toBe('John Smith');
 
     const objects = lookupCustomer.materializeObjects?.(result, args);
+    if (!objects) {
+      throw new Error('lookup_customer should materialize objects');
+    }
     expect(objects).toHaveLength(2);
-    expect(objects?.[0].typeName).toBe('PERSON_NAME');
-    expect(objects?.[1].typeName).toBe('CUSTOMER_ID');
+    expect(objects[0].typeName).toBe('PERSON_NAME');
+    expect(objects[1].typeName).toBe('CUSTOMER_ID');
   });
 
   it('should throw for unknown customer', async () => {
@@ -34,8 +37,11 @@ describe('Tool: get_phone_number', () => {
     expect(result.phoneNumber).toBe('+15551234567');
 
     const objects = getPhoneNumber.materializeObjects?.(result, args);
+    if (!objects) {
+      throw new Error('get_phone_number should materialize objects');
+    }
     expect(objects).toHaveLength(1);
-    expect(objects?.[0].typeName).toBe('PHONE_NUMBER');
+    expect(objects[0].typeName).toBe('PHONE_NUMBER');
   });
 
   it('should validate args schema', () => {
@@ -51,8 +57,11 @@ describe('Tool: send_text', () => {
     expect(result.messageId).toBeDefined();
 
     const objects = sendText.materializeObjects?.(result, args);
+    if (!objects) {
+      throw new Error('send_text should materialize objects');
+    }
     expect(objects).toHaveLength(1);
-    expect(objects?.[0].typeName).toBe('TEXT_MESSAGE_ID');
+    expect(objects[0].typeName).toBe('TEXT_MESSAGE_ID');
   });
 
   it('should validate args schema', () => {

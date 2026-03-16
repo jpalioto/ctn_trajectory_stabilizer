@@ -4,6 +4,7 @@ import { toolRegistry } from '../src/tools/registry.js';
 import { transitions } from '../src/engine/controlFlow.js';
 import { ObjectStore } from '../src/store/objectStore.js';
 import { State } from '../src/types/core.js';
+import { RuntimeToolSpec } from '../src/types/tools.js';
 
 describe('StabilizingExecutor End-to-End', () => {
   let store: ObjectStore;
@@ -108,6 +109,73 @@ describe('StabilizingExecutor End-to-End', () => {
     if (!res.ok) {
       expect(res.error.code).toBe('SEMANTIC_TYPE_MISMATCH');
       expect(res.error.message).toContain('PERSON_NAME');
+    }
+  });
+
+  it('should preserve domain-specific execution codes for tool failures', async () => {
+    const result = await executor.executeStep('START', {
+      toolName: 'lookup_customer',
+      args: { name: 'Unknown' }
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('CUSTOMER_NOT_FOUND');
+      expect(result.error.message).toBe("Customer 'Unknown' not found.");
+    }
+  });
+
+  it('should map unexpected runtime exceptions to TOOL_EXECUTION_FAILED', async () => {
+    const lookupTool = toolRegistry.get('lookup_customer');
+    expect(lookupTool).toBeDefined();
+    if (!lookupTool) {
+      throw new Error('lookup_customer tool must exist for runtime taxonomy tests');
+    }
+
+    const faultyRegistry = new Map<string, RuntimeToolSpec>(toolRegistry);
+    faultyRegistry.set('lookup_customer', {
+      ...lookupTool,
+      execute: async () => {
+        throw new Error('unexpected failure');
+      },
+    });
+
+    const faultyExecutor = new StabilizingExecutor(faultyRegistry, transitions, store);
+    const result = await faultyExecutor.executeStep('START', {
+      toolName: 'lookup_customer',
+      args: { name: 'John Smith' }
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('TOOL_EXECUTION_FAILED');
+      expect(result.error.message).toBe('unexpected failure');
+    }
+  });
+
+  it('should map invalid tool outputs to RESULT_SCHEMA_VALIDATION_FAILED', async () => {
+    const lookupTool = toolRegistry.get('lookup_customer');
+    expect(lookupTool).toBeDefined();
+    if (!lookupTool) {
+      throw new Error('lookup_customer tool must exist for result-schema tests');
+    }
+
+    const faultyRegistry = new Map<string, RuntimeToolSpec>(toolRegistry);
+    faultyRegistry.set('lookup_customer', {
+      ...lookupTool,
+      execute: async () => ({ matchedName: 'John Smith' }),
+    });
+
+    const faultyExecutor = new StabilizingExecutor(faultyRegistry, transitions, store);
+    const result = await faultyExecutor.executeStep('START', {
+      toolName: 'lookup_customer',
+      args: { name: 'John Smith' }
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('RESULT_SCHEMA_VALIDATION_FAILED');
+      expect(result.error.message).toContain('customerId');
     }
   });
 });

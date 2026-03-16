@@ -9,11 +9,12 @@ describe('Provenance Validation', () => {
     const store = new ObjectStore();
     const args = { phoneNumber: '+15551234567', message: 'Hello' };
     
-    const error = validateProvenance(sendText, args, store, 'PHONE_RESOLVED', transitions);
+    const diagnostic = validateProvenance(sendText, args, store, 'PHONE_RESOLVED', transitions);
     
-    expect(error).not.toBeNull();
-    expect(error?.code).toBe('UNGROUNDED_INPUT');
-    expect(error?.field).toBe('phoneNumber');
+    expect(diagnostic).not.toBeNull();
+    expect(diagnostic?.code).toBe('UNGROUNDED_INPUT');
+    expect(diagnostic?.kind).toBe('provenance');
+    expect(diagnostic?.provenanceIssues[0]?.field).toBe('phoneNumber');
   });
 
   it('should pass for grounded phone number from correct producer', () => {
@@ -30,9 +31,9 @@ describe('Provenance Validation', () => {
     });
     
     const args = { phoneNumber, message: 'Hello' };
-    const error = validateProvenance(sendText, args, store, 'PHONE_RESOLVED', transitions);
+    const diagnostic = validateProvenance(sendText, args, store, 'PHONE_RESOLVED', transitions);
     
-    expect(error).toBeNull();
+    expect(diagnostic).toBeNull();
   });
 
   it('should fail for grounded value but wrong producer', () => {
@@ -49,10 +50,11 @@ describe('Provenance Validation', () => {
     });
     
     const args = { phoneNumber, message: 'Hello' };
-    const error = validateProvenance(sendText, args, store, 'PHONE_RESOLVED', transitions);
+    const diagnostic = validateProvenance(sendText, args, store, 'PHONE_RESOLVED', transitions);
     
-    expect(error).not.toBeNull();
-    expect(error?.code).toBe('PROVENANCE_MISMATCH');
-    expect(error?.expectedFrom).toBe('get_phone_number');
+    expect(diagnostic).not.toBeNull();
+    expect(diagnostic?.code).toBe('PROVENANCE_MISMATCH');
+    expect(diagnostic?.kind).toBe('provenance');
+    expect(diagnostic?.provenanceIssues[0]?.requiredProducer).toBe('get_phone_number');
   });
 });

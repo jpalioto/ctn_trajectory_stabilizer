@@ -1,9 +1,11 @@
 import { State } from '../types/core.js';
 import { Transition } from '../types/transitions.js';
 import { ToolExecutionError } from '../types/errors.js';
+import { StabilizationDiagnostic } from '../types/diagnostics.js';
 import { RuntimeToolSpec, ToolCallProposal, StepResult } from '../types/tools.js';
 import { ObjectStore } from '../store/objectStore.js';
 import { allowedNextTools, nextStateFor } from './controlFlow.js';
+import { renderStabilizingError } from './diagnostics.js';
 import { validateSemantics } from './semanticValidation.js';
 import { validateProvenance } from './provenance.js';
 
@@ -14,78 +16,88 @@ export class StabilizingExecutor {
     private readonly objectStore: ObjectStore
   ) {}
 
+  private buildContext(state: State, attemptedTool: string) {
+    return {
+      currentState: state,
+      attemptedTool,
+      allowedNextTools: allowedNextTools(state, this.transitions),
+    };
+  }
+
+  private fail(diagnostic: StabilizationDiagnostic): StepResult {
+    return {
+      ok: false,
+      error: renderStabilizingError(diagnostic),
+    };
+  }
+
   async executeStep(state: State, proposal: ToolCallProposal): Promise<StepResult> {
     const tool = this.tools.get(proposal.toolName);
+    const context = this.buildContext(state, proposal.toolName);
 
     // 1. Tool exists
     if (!tool) {
-      return {
-        ok: false,
-        error: {
-          code: 'INVALID_TRANSITION',
-          message: `Unknown tool '${proposal.toolName}'`,
-          currentState: state,
-          attemptedTool: proposal.toolName,
-          allowedNextTools: allowedNextTools(state, this.transitions),
-        },
-      };
+      return this.fail({
+        kind: 'transition',
+        code: 'INVALID_TRANSITION',
+        message: `Unknown tool '${proposal.toolName}'`,
+        context,
+      });
     }
 
     // 2. Transition allowed from current state
     const nextState = nextStateFor(state, proposal.toolName, this.transitions);
     if (!nextState) {
-      return {
-        ok: false,
-        error: {
-          code: 'INVALID_TRANSITION',
-          message: `Tool '${proposal.toolName}' is not allowed from state '${state}'`,
-          currentState: state,
-          attemptedTool: proposal.toolName,
-          allowedNextTools: allowedNextTools(state, this.transitions),
-          repairHint: `Choose one of the allowed next tools: ${allowedNextTools(state, this.transitions).join(', ')}`,
-        },
-      };
+      return this.fail({
+        kind: 'transition',
+        code: 'INVALID_TRANSITION',
+        message: `Tool '${proposal.toolName}' is not allowed from state '${state}'`,
+        context,
+        repairHint: `Choose one of the allowed next tools: ${context.allowedNextTools.join(', ')}`,
+      });
     }
 
     // 3. Zod arg schema valid
     const parsed = tool.argsSchema.safeParse(proposal.args);
     if (!parsed.success) {
-      return {
-        ok: false,
-        error: {
-          code: 'SCHEMA_VALIDATION_FAILED',
-          message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-          currentState: state,
-          attemptedTool: proposal.toolName,
-          allowedNextTools: allowedNextTools(state, this.transitions),
-        },
-      };
+      const schemaIssues = parsed.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      }));
+
+      return this.fail({
+        kind: 'schema',
+        code: 'SCHEMA_VALIDATION_FAILED',
+        message: schemaIssues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
+        context,
+        schemaIssues,
+      });
     }
 
     // 4. Semantic validators pass
     const semanticIssues = validateSemantics(tool, parsed.data, this.objectStore, state);
     if (semanticIssues.length > 0) {
       const issue = semanticIssues[0];
-      return {
-        ok: false,
-        error: {
-          code: issue.code,
-          message: issue.message,
-          currentState: state,
-          attemptedTool: proposal.toolName,
-          allowedNextTools: allowedNextTools(state, this.transitions),
-          field: issue.field,
-          expected: issue.expected,
-          observed: issue.observed,
-          repairHint: issue.repairHint,
-        },
-      };
+      return this.fail({
+        kind: 'semantic',
+        code: issue.code,
+        message: issue.message,
+        context,
+        semanticIssues,
+        repairHint: issue.repairHint,
+      });
     }
 
     // 5. Provenance rules pass
-    const provError = validateProvenance(tool, parsed.data, this.objectStore, state, this.transitions);
-    if (provError) {
-      return { ok: false, error: provError };
+    const provenanceDiagnostic = validateProvenance(
+      tool,
+      parsed.data,
+      this.objectStore,
+      state,
+      this.transitions,
+    );
+    if (provenanceDiagnostic) {
+      return this.fail(provenanceDiagnostic);
     }
 
     let rawResult: unknown;
@@ -100,32 +112,30 @@ export class StabilizingExecutor {
             error instanceof Error ? error.message : 'Tool execution failed',
           );
 
-      return {
-        ok: false,
-        error: {
-          code: executionError.code,
-          message: executionError.message,
-          currentState: state,
-          attemptedTool: proposal.toolName,
-          allowedNextTools: allowedNextTools(state, this.transitions),
-        },
-      };
+      return this.fail({
+        kind: 'execution',
+        code: executionError.code,
+        message: executionError.message,
+        context,
+      });
     }
 
     const parsedResult = tool.resultSchema.safeParse(rawResult);
     if (!parsedResult.success) {
-      return {
-        ok: false,
-        error: {
-          code: 'RESULT_SCHEMA_VALIDATION_FAILED',
-          message: parsedResult.error.issues
-            .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
-            .join('; '),
-          currentState: state,
-          attemptedTool: proposal.toolName,
-          allowedNextTools: allowedNextTools(state, this.transitions),
-        },
-      };
+      const schemaIssues = parsedResult.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      }));
+
+      return this.fail({
+        kind: 'schema',
+        code: 'RESULT_SCHEMA_VALIDATION_FAILED',
+        message: schemaIssues
+          .map((issue) => `${issue.path}: ${issue.message}`)
+          .join('; '),
+        context,
+        schemaIssues,
+      });
     }
 
     // 7. Materialize and persist typed objects
