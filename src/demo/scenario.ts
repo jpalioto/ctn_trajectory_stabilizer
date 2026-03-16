@@ -4,8 +4,10 @@ import { transitions } from '../engine/controlFlow.js';
 import { ObjectStore } from '../store/objectStore.js';
 import { State } from '../types/core.js';
 import { ToolCallProposal, StepResult } from '../types/tools.js';
+import { resetIds } from '../utils/ids.js';
 
 async function runDemo() {
+  resetIds();
   const store = new ObjectStore();
   const executor = new StabilizingExecutor(toolRegistry, transitions, store);
   let currentState: State = 'START';

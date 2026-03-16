@@ -4,6 +4,8 @@ import { ObjectStore } from '../src/store/objectStore.js';
 import { validateProvenance } from '../src/engine/provenance.js';
 import { transitions } from '../src/engine/controlFlow.js';
 
+const FIXED_CREATED_AT = '2024-01-01T00:00:00.000Z';
+
 describe('Provenance Validation', () => {
   it('should fail for ungrounded literal phone number', () => {
     const store = new ObjectStore();
@@ -27,7 +29,7 @@ describe('Provenance Validation', () => {
       value: phoneNumber,
       producedBy: 'get_phone_number',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString()
+      createdAt: FIXED_CREATED_AT
     });
     
     const args = { phoneNumber, message: 'Hello' };
@@ -46,7 +48,7 @@ describe('Provenance Validation', () => {
       value: phoneNumber,
       producedBy: 'manual_entry',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString()
+      createdAt: FIXED_CREATED_AT
     });
     
     const args = { phoneNumber, message: 'Hello' };

@@ -4,12 +4,14 @@ import { toolRegistry } from '../src/tools/registry.js';
 import { transitions } from '../src/engine/controlFlow.js';
 import { ObjectStore } from '../src/store/objectStore.js';
 import { RuntimeToolSpec } from '../src/types/tools.js';
+import { resetIds } from '../src/utils/ids.js';
 
 describe('Core Stabilization Properties Verification', () => {
   let store: ObjectStore;
   let executor: StabilizingExecutor;
 
   beforeEach(() => {
+    resetIds();
     store = new ObjectStore();
     executor = new StabilizingExecutor(toolRegistry, transitions, store);
   });

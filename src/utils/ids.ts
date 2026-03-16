@@ -1,6 +1,11 @@
 let objectCounter = 0;
 let timestampCounter = 0;
 
+export const resetIds = (): void => {
+  objectCounter = 0;
+  timestampCounter = 0;
+};
+
 export const nextObjectId = (prefix: string): string => {
   objectCounter += 1;
   return `${prefix}_${objectCounter}`;

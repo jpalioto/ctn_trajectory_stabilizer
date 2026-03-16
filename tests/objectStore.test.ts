@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { ObjectStore } from '../src/store/objectStore.js';
 import { TypedObject } from '../src/types/core.js';
 
+const FIXED_CREATED_AT = '2024-01-01T00:00:00.000Z';
+
 describe('ObjectStore', () => {
   let store: ObjectStore;
 
@@ -16,7 +18,7 @@ describe('ObjectStore', () => {
       value: 'John Smith',
       producedBy: 'manual',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString(),
+      createdAt: FIXED_CREATED_AT,
     };
     store.add(obj);
     expect(store.get('obj1')).toEqual(obj);
@@ -29,7 +31,7 @@ describe('ObjectStore', () => {
       value: 'John Smith',
       producedBy: 'manual',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString(),
+      createdAt: FIXED_CREATED_AT,
     };
     const obj2: TypedObject = {
       objectId: 'obj2',
@@ -37,7 +39,7 @@ describe('ObjectStore', () => {
       value: 'cust1',
       producedBy: 'manual',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString(),
+      createdAt: FIXED_CREATED_AT,
     };
     store.addMany([obj1, obj2]);
     expect(store.findByType('PERSON_NAME')).toEqual([obj1]);
@@ -50,7 +52,7 @@ describe('ObjectStore', () => {
       value: 'John Smith',
       producedBy: 'manual',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString(),
+      createdAt: FIXED_CREATED_AT,
     };
     store.add(obj1);
     expect(store.findByValue('PERSON_NAME', 'John Smith')).toEqual([obj1]);

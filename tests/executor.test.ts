@@ -5,12 +5,16 @@ import { transitions } from '../src/engine/controlFlow.js';
 import { ObjectStore } from '../src/store/objectStore.js';
 import { State } from '../src/types/core.js';
 import { RuntimeToolSpec } from '../src/types/tools.js';
+import { resetIds } from '../src/utils/ids.js';
+
+const FIXED_CREATED_AT = '2024-01-01T00:00:00.000Z';
 
 describe('StabilizingExecutor End-to-End', () => {
   let store: ObjectStore;
   let executor: StabilizingExecutor;
 
   beforeEach(() => {
+    resetIds();
     store = new ObjectStore();
     executor = new StabilizingExecutor(toolRegistry, transitions, store);
   });
@@ -96,7 +100,7 @@ describe('StabilizingExecutor End-to-End', () => {
       value: 'John Smith',
       producedBy: 'lookup_customer',
       sourceObjectIds: [],
-      createdAt: new Date().toISOString()
+      createdAt: FIXED_CREATED_AT
     });
 
     // Attempt send_text from PHONE_RESOLVED state but with a name string

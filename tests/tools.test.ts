@@ -1,9 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { lookupCustomer } from '../src/tools/lookupCustomer.js';
 import { getPhoneNumber } from '../src/tools/getPhoneNumber.js';
 import { sendText } from '../src/tools/sendText.js';
+import { resetIds } from '../src/utils/ids.js';
 
 describe('Tool: lookup_customer', () => {
+  beforeEach(() => {
+    resetIds();
+  });
+
   it('should find a customer by name', async () => {
     const args = { name: 'John Smith' };
     const result = await lookupCustomer.execute(args);
@@ -15,6 +20,8 @@ describe('Tool: lookup_customer', () => {
       throw new Error('lookup_customer should materialize objects');
     }
     expect(objects).toHaveLength(2);
+    expect(objects[0].objectId).toBe('person_1');
+    expect(objects[1].objectId).toBe('customer_2');
     expect(objects[0].typeName).toBe('PERSON_NAME');
     expect(objects[1].typeName).toBe('CUSTOMER_ID');
   });
@@ -31,6 +38,10 @@ describe('Tool: lookup_customer', () => {
 });
 
 describe('Tool: get_phone_number', () => {
+  beforeEach(() => {
+    resetIds();
+  });
+
   it('should find a phone number by customer ID', async () => {
     const args = { customerId: 'cust_1' };
     const result = await getPhoneNumber.execute(args);
@@ -41,6 +52,7 @@ describe('Tool: get_phone_number', () => {
       throw new Error('get_phone_number should materialize objects');
     }
     expect(objects).toHaveLength(1);
+    expect(objects[0].objectId).toBe('phone_1');
     expect(objects[0].typeName).toBe('PHONE_NUMBER');
   });
 
@@ -51,16 +63,21 @@ describe('Tool: get_phone_number', () => {
 });
 
 describe('Tool: send_text', () => {
+  beforeEach(() => {
+    resetIds();
+  });
+
   it('should mock sending a text', async () => {
     const args = { phoneNumber: '+15551234567', message: 'Hello' };
     const result = await sendText.execute(args);
-    expect(result.messageId).toBeDefined();
+    expect(result.messageId).toBe('message_1');
 
     const objects = sendText.materializeObjects?.(result, args);
     if (!objects) {
       throw new Error('send_text should materialize objects');
     }
     expect(objects).toHaveLength(1);
+    expect(objects[0].objectId).toBe('message_record_2');
     expect(objects[0].typeName).toBe('TEXT_MESSAGE_ID');
   });
 
